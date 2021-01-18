@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="minha-api" />
+        <module name="minha-sim-atomix" />
+        <module name="approximate_aggrement" />
+        <module name="minha-sim" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="approximate_aggrement" target="8" />
+      <module name="minha" target="9" />
+      <module name="minha-api" target="9" />
+      <module name="minha-sim" target="9" />
+      <module name="minha-sim-atomix" target="9" />
+    </bytecodeTargetLevel>
+  </component>
+</project>
