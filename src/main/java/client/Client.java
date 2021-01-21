@@ -52,7 +52,7 @@ public class Client implements RunnableConfigurable {
         this.platform = SimulatedPlatform.instance();
         this.dispatcher = factory.getMessageDispatcher(platform);
         this.register = register;
-        this.logger = new Logger(logsPathName, register.getId() + "-" + dispatcher.getAddress().toString() + ".csv");
+        this.logger = new Logger(logsPathName, register.getId() + "-" + dispatcher.getAddress().toString() + ".csv",  register.getClientDebugMode());
         run();
     }
 
@@ -60,7 +60,7 @@ public class Client implements RunnableConfigurable {
     public void run() {
         currentRound = 0;
         double initialValue = register.getInitialValue();
-        if( register.getClientDebugMode()) logger.logNewRoundArchived(currentRound, currentValuesReceived, initialValue);
+        logger.logNewRoundArchived(currentRound, currentValuesReceived, initialValue);
         register.newRoundAchieved( currentRound, null, initialValue);
 
         dispatcher.registerHandler(ROUND_TAG, this::receiveRoundMsg);
@@ -71,7 +71,7 @@ public class Client implements RunnableConfigurable {
 
     //  Receivers Methods
     private synchronized void receiveHaltMsg(Message msg){
-        if( register.getClientDebugMode()) logger.logHaltMessageReceived(currentRound, currentValuesReceived, msg);
+        logger.logHaltMessageReceived(currentRound, currentValuesReceived, msg);
 
         usefulMessagesCount ++;
 
@@ -89,14 +89,14 @@ public class Client implements RunnableConfigurable {
     private synchronized void receiveRoundMsg(Message msg){
         // Ignore message
         if(msg.round < this.currentRound || !isRunning ){
-            if( register.getClientDebugMode()) logger.logMessageIgnored(currentRound, currentValuesReceived, msg);
+            logger.logMessageIgnored(currentRound, currentValuesReceived, msg);
             ignoredMessagesCount.merge(msg.round, 1, Integer::sum);
             return;
         }
 
         // Future messages
         if(msg.round > this.currentRound) {
-            if( register.getClientDebugMode()) logger.logFutureMessage(currentRound, currentValuesReceived, msg);
+            logger.logFutureMessage(currentRound, currentValuesReceived, msg);
             futureMsg.putIfAbsent(msg.round, new ArrayList<>());
             futureMsg.get(msg.round).add(msg);
             return;
@@ -104,7 +104,7 @@ public class Client implements RunnableConfigurable {
 
         // Useful message
         usefulMessagesCount ++;
-        if( register.getClientDebugMode()) logger.logNewMessageReceived(currentRound, currentValuesReceived, msg);
+        logger.logNewMessageReceived(currentRound, currentValuesReceived, msg);
         currentValuesReceived.put(msg.getSender(), msg.value);
 
         // If new round can be archived
@@ -122,7 +122,7 @@ public class Client implements RunnableConfigurable {
 
         //Calculate new value
         double value = MyMath.newValue(register.getFaultProcessCount(), currentValuesReceived.values(), currentRound ==1);
-        if( register.getClientDebugMode()) logger.logNewRoundArchived(currentRound, currentValuesReceived, value);
+        logger.logNewRoundArchived(currentRound, currentValuesReceived, value);
         register.newRoundAchieved(currentRound,new HashSet<>(currentValuesReceived.keySet()), value);
 
         currentValuesReceived.clear();
@@ -139,7 +139,7 @@ public class Client implements RunnableConfigurable {
                 //Log and report data
                 futureMsg.values().stream().flatMap(List::stream).forEach(m -> ignoredMessagesCount.merge(m.round, 1, Integer::sum));
                 register.finish(dispatcher.getAddress(), platform.nanoTime(), currentRound, value,  usefulMessagesCount, ignoredMessagesCount);
-                if( register.getClientDebugMode()) logger.logFinished(currentRound, currentValuesReceived, value);
+                logger.logFinished(currentRound, currentValuesReceived, value);
                 logger.close();
             });
         }else{

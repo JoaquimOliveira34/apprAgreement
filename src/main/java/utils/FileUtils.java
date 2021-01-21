@@ -13,7 +13,7 @@ public class FileUtils {
         if (! directory.exists())
             directory.mkdirs();
         try {
-            this.fw = new FileWriter(filename);
+            this.fw = new FileWriter( path + filename);
         } catch (IOException e) {
             e.printStackTrace();
         }
