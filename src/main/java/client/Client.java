@@ -77,11 +77,9 @@ public class Client implements RunnableConfigurable {
 
         haltMessages.putIfAbsent(msg.round, new ArrayList<>());
         haltMessages.get(msg.round).add(msg);
-        if( msg.round == currentRound && isRunning){
-            currentValuesReceived.put(msg.getSender(), msg.value);
-            if ( currentValuesReceived.size() == register.getValuesReceivedSize())
-                newRoundArchived();
-        }
+        if( msg.round == currentRound && isRunning)
+            addMessageToCollection(msg);
+
         if( ++haltMessagesCount == register.getProcessCount())
             allDone.complete(null);
     }
@@ -105,6 +103,10 @@ public class Client implements RunnableConfigurable {
         // Useful message
         usefulMessagesCount ++;
         logger.logNewMessageReceived(currentRound, currentValuesReceived, msg);
+        addMessageToCollection(msg);
+    }
+
+    private synchronized void addMessageToCollection(Message msg){
         currentValuesReceived.put(msg.getSender(), msg.value);
 
         // If new round can be archived
