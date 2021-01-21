@@ -3,6 +3,7 @@ package dispatcher;
 import io.atomix.utils.net.Address;
 import pt.inesctec.minha.sim.atomix.SimulatedPlatform;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -13,21 +14,39 @@ public class MutatedGossipDispatcher extends MessageDispatcher {
     /*
      * Dispatcher inspired on Gossip approach without messages retransmission.
      * For each message broadcast:
-     *  * $fanout$ processes are selected to send the message immediately
-     *  * For the rest, the message is scheduled to be sent with differents delays
-     *  * The sending can be canceled if a message has been received from the target for a round greater than the scheduled message
+     *  * $fanout$ processes are selected to message be send immediately
+     *  * For the remaining processes ( $n$ - $fanout$ ) the message is delayed.
+     *  * Messages are delayed in group ( with size = $delayGroupSize$) each one with a unique $delay$ multiple.
+     *  * The sending can be canceled if a message has been received from the target with a round greater than the scheduled message
      */
     private final int delay;
     private final TimeUnit delayTimeUnit;
+    private final int delayGroupSize;
     private final int fanout;
     private final Map<Address, Integer> roundsByAddress;
 
-    public MutatedGossipDispatcher(Address address, DispatcherEventsRegister register, SimulatedPlatform platform, int fanout, int delay, TimeUnit delayTimeUnit) {
+    public MutatedGossipDispatcher(Address address,
+                                   DispatcherEventsRegister register,
+                                   SimulatedPlatform platform,
+                                   int fanout,
+                                   int delay,
+                                   TimeUnit delayTimeUnit) {
+        this(address,register,platform, fanout, delay, delayTimeUnit, fanout);
+    }
+
+    public MutatedGossipDispatcher(Address address,
+                                   DispatcherEventsRegister register,
+                                   SimulatedPlatform platform,
+                                   int fanout,
+                                   int delay,
+                                   TimeUnit delayTimeUnit,
+                                   int delayGroupSize) {
         super(address,register,platform);
         this.roundsByAddress = new HashMap<>();
         this.fanout = fanout;
         this.delay = delay;
         this.delayTimeUnit = delayTimeUnit;
+        this.delayGroupSize = delayGroupSize;
     }
 
     @Override
@@ -43,28 +62,34 @@ public class MutatedGossipDispatcher extends MessageDispatcher {
 
     @Override
     public synchronized void broadcast(String tag, List<Address> participants, Message msg) {
-        super.broadcast(tag, participants.subList(0,fanout), msg);
-        for(int i = fanout; i < participants.size(); i ++){
-            final Address addr = participants.get(i);
-            final long msgDelay = delay * (long) (i-fanout+1);
-            executor.schedule(() -> sendMessage(addr, tag, msg), msgDelay, delayTimeUnit);
-        }
+        // this is not the best option for performance but keep code easier to maintain
+        broadcast(tag, participants, Collections.nCopies(participants.size(), msg));
      }
 
     @Override
     public synchronized void broadcast(String tag, List<Address> participants, List<Message> msgList) {
         super.broadcast(tag, participants.subList(0,fanout), msgList.subList(0,fanout));
-
-        for (int i = fanout; i < participants.size(); i++) {
-            Address addr = participants.get(i);
-            Message msg = msgList.get(i);
-            final long msgDelay = delay * (long) (i-fanout+1);
-            executor.schedule(() -> sendMessage(addr, tag, msg), msgDelay, delayTimeUnit);
+        Map<Address, Message> messagesGroup = new HashMap<>();
+        int groupDelay = delay;
+        for(int i = fanout; i < participants.size(); i ++){
+            if( messagesGroup.size() == delayGroupSize ){
+                Map<Address, Message> messagesGroupClone = new HashMap<>(messagesGroup);
+                executor.schedule(() -> sendMessage(messagesGroupClone, tag), groupDelay, delayTimeUnit);
+                groupDelay += delay;
+                messagesGroup.clear();
+            }
+            messagesGroup.put(participants.get(i), msgList.get(i));
         }
+        if( ! messagesGroup.isEmpty())
+            executor.schedule(() -> sendMessage(messagesGroup, tag), groupDelay, delayTimeUnit);
+
     }
 
-    private synchronized void sendMessage(Address addr, String tag, Message msg){
-        if (roundsByAddress.getOrDefault(addr, 0) <= msg.round)
-            sendAsync(addr,tag, serializer.encode(msg));
+    private synchronized void sendMessage(Map<Address, Message> messages, String tag){
+        for( Address target : messages.keySet()){
+            Message msg = messages.get(target);
+            if (roundsByAddress.getOrDefault(target, 0) <= msg.round)
+                sendAsync(target, tag, serializer.encode(msg));
+        }
     }
 }
