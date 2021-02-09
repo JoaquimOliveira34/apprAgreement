@@ -14,6 +14,8 @@ import static utils.FileUtils.*;
 public class Demo {
     public static final String MAIN_FOLDER = "./results";
     public static final String[] CONFIG_FILES = new String[]{
+            "test"
+            /*
             "run_without",
             "run_with_1",
             "run_with_2",
@@ -26,6 +28,7 @@ public class Demo {
             "run_with_9",
             "run_with_10",
             "run_with_11",
+            */
             // "change_delay",
             // "change_fanout",
           };

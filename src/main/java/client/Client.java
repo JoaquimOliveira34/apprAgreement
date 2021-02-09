@@ -5,20 +5,20 @@ import dispatcher.Message;
 import dispatcher.MessageDispatcher;
 import io.atomix.utils.net.Address;
 import pt.inesctec.minha.sim.atomix.SimulatedPlatform;
-import utils.FileUtils;
 import utils.MyMath;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
-import static utils.FileUtils.openFile;
 
 public class Client implements RunnableConfigurable {
     private static final String HALT_TAG = "halt";
     private static final String ROUND_TAG = "round";
+    private static final int MAX_ROUNDS = 20;
+    private static final int WAIT_TIME = 500_000;
+    private static final TimeUnit WAIT_TIME_UNIT = TimeUnit.NANOSECONDS;
 
     // Initialized on thread start
     private SimulatedPlatform platform;
@@ -28,11 +28,13 @@ public class Client implements RunnableConfigurable {
     // Client state
     public int currentRound, roundsToBeExecuted;
     public final Map<Address, Double> currentValuesReceived;
+    private double currentValue;
     private final Map<Integer,List<Message> > haltMessages;
     private final Map<Integer,List<Message>> futureMsg;
     private final CompletableFuture<Void> allDone;
     private int haltMessagesCount;
     private boolean isRunning;
+    private ScheduledExecutorService scheduled;
 
     // Monitoring data
     private final Map<Integer,Integer> ignoredMessagesCount;
@@ -50,6 +52,7 @@ public class Client implements RunnableConfigurable {
 
     public void setConfigurationThenRun(ClientEventsRegister register, DispatcherFactory factory, String logsPathName){
         this.platform = SimulatedPlatform.instance();
+        this.scheduled = platform.newScheduledThreadPool();
         this.dispatcher = factory.getMessageDispatcher(platform);
         this.register = register;
         this.logger = new Logger(logsPathName, register.getId() + "-" + dispatcher.getAddress().toString(),  register.getClientDebugMode());
@@ -59,14 +62,17 @@ public class Client implements RunnableConfigurable {
     @Override
     public void run() {
         currentRound = 0;
-        double initialValue = register.getInitialValue();
+        roundsToBeExecuted = MAX_ROUNDS;
+        currentValue = register.getInitialValue();
         logger.DEBUG("Client running", this);
-        register.newRoundAchieved( currentRound, null, initialValue);
+        register.newRoundAchieved( currentRound, null, currentValue);
 
         dispatcher.registerHandler(ROUND_TAG, this::receiveRoundMsg);
         dispatcher.registerHandler(HALT_TAG, this::receiveHaltMsg);
 
-        dispatcher.start().thenRun( () -> broadcastRoundMsg(initialValue, 0));
+        dispatcher.start().thenRun( () -> broadcastRoundMsg(currentValue, 0));
+        scheduled.schedule(this::newRoundArchived, WAIT_TIME, WAIT_TIME_UNIT );
+        // task = scheduled.scheduleAtFixedRate(this::newRoundArchived, WAIT_TIME, WAIT_TIME, WAIT_TIME_UNIT);
     }
 
     //  Receivers Methods
@@ -108,32 +114,34 @@ public class Client implements RunnableConfigurable {
 
     private synchronized void addMessageToCollection(Message msg){
         currentValuesReceived.put(msg.getSender(), msg.value);
-
-        // If new round can be archived
-        if( currentValuesReceived.size() == register.getValuesReceivedSize() )
-            newRoundArchived();
     }
 
     private synchronized void newRoundArchived(){
+        if( !isRunning)
+            return;
+
         currentRound ++;
 
-        //Calculate max rounds to be executed if if the first round
-        if( currentRound == 1)
-            this.roundsToBeExecuted = MyMath.maxRounds(register.getProcessCount(), register.getFaultProcessCount(),
-                    register.getEpsilon(), currentValuesReceived.values());
+        if( hasEnoughValuesToApplyF() ){
+            // Calculate new value to use during next round
+            currentValue = MyMath.newValue(register.getFaultProcessCount(), currentValuesReceived.values(), currentRound ==1);
+            logger.DEBUG("New round archived with new value", this);
+        }else{
+            // Use old value to use during next round
+            logger.DEBUG("New round archived with old value", this);
+        }
 
-        //Calculate new value
-        double value = MyMath.newValue(register.getFaultProcessCount(), currentValuesReceived.values(), currentRound ==1);
-        logger.DEBUG("New round archived", this);
-        register.newRoundAchieved(currentRound,new HashSet<>(currentValuesReceived.keySet()), value);
-
+        register.newRoundAchieved(currentRound,new HashSet<>(currentValuesReceived.keySet()), currentValue);
         currentValuesReceived.clear();
 
         if( currentRound == roundsToBeExecuted + 1) {
-            // If last round is archived
-            broadcastHaltMsg( value, currentRound);
-            isRunning = false;
+            // Finish if last round is archived
+            broadcastHaltMsg( currentValue, currentRound);
             logger.DEBUG("Client ready to finish", this);
+            isRunning = false;
+            // TODO: Improve finish method and how data is reported ( messages lost, etc..)
+            register.finish(dispatcher.getAddress(), platform.nanoTime(), currentRound, currentValue,  usefulMessagesCount, ignoredMessagesCount);
+
             allDone.thenRun( () -> {
                 // stop to process messages
                 dispatcher.unregisterHandler(HALT_TAG);
@@ -141,26 +149,33 @@ public class Client implements RunnableConfigurable {
                 dispatcher.close();
                 //Log and report data
                 futureMsg.values().stream().flatMap(List::stream).forEach(m -> ignoredMessagesCount.merge(m.round, 1, Integer::sum));
-                register.finish(dispatcher.getAddress(), platform.nanoTime(), currentRound, value,  usefulMessagesCount, ignoredMessagesCount);
                 logger.DEBUG("Client Finished", this);
                 logger.close();
             });
         }else{
-            broadcastRoundMsg( value, currentRound);
+            broadcastRoundMsg( currentValue, currentRound);
 
-            // Get halt messages
+            // Set a new timeout to change round
+            scheduled.schedule(this::newRoundArchived, WAIT_TIME, WAIT_TIME_UNIT );
+
+            // Process halt messages
             haltMessages.entrySet().stream()
                     .filter(entry-> entry.getKey() <= currentRound)
                     .limit(register.getValuesReceivedSize())
                     .forEach( e -> e.getValue().forEach( m -> currentValuesReceived.put(m.getSender(),m.value)));
 
-            if( currentValuesReceived.size() == register.getValuesReceivedSize())
-                newRoundArchived();
 
+            // Process round messages queued
             List<Message> messages = futureMsg.remove(currentRound);
             if( messages != null)
-                messages.forEach( m -> receiveRoundMsg(m));
+                messages.forEach(this::receiveRoundMsg);
         }
+    }
+
+    private boolean hasEnoughValuesToApplyF(){
+        // TODO : Check if this is ok
+        int t = register.getFaultProcessCount();
+        return MyMath.c(currentValuesReceived.size()- t,t) > 0;
     }
 
     //  Broadcast  Methods
