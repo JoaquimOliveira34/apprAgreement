@@ -21,8 +21,9 @@ public class Logger {
     }
 
     public void DEBUG(String logMessage, Client client, Message msg){
-        if ( logFile != null)
+        if ( logFile != null){
             logFile.write( logMessage + " - " + serializeMessage(msg) + " - " + serializeClient(client));
+        }
     }
 
     public String serializeClient(Client c){

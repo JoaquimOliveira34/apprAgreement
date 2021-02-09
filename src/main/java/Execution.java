@@ -200,7 +200,7 @@ public class Execution implements Serializable, DispatcherEventsRegister, Client
     }
 
     public int getMessagesIgnoredCount() {
-        return messagesIgnored.values().stream().reduce(Integer::sum).get();
+        return messagesIgnored.values().stream().reduce(Integer::sum).orElse(0);
     }
 
     public Map<Integer, Integer> getMessagesIgnored() {
