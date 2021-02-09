@@ -1,49 +1,43 @@
 package client;
 
 import dispatcher.Message;
-import io.atomix.utils.net.Address;
 import utils.FileUtils;
-
-import java.util.Map;
 
 public class Logger {
     private final FileUtils logFile;
 
     Logger(String path, String fileName, boolean clientDebugMode){
-        if( clientDebugMode){
-            logFile = new FileUtils(path, fileName);
-            logFile.write("Round,Values size, Event ");
+        if(clientDebugMode){
+            logFile = new FileUtils(path,  fileName + ".log");
         }else{
             logFile = null;
         }
 
     }
 
-    void logNewMessageReceived(int atRound, Map<Address, Double> valuesReceived, Message msg) {
-        if ( logFile != null) logFile.write(atRound + "," + valuesReceived.values().size() + ", New Message : " + msg.value + " from " + msg.getSender().toString());
+    public void DEBUG(String logMessage, Client client){
+        if ( logFile != null)
+            logFile.write( logMessage + " - " + serializeClient(client));
     }
 
-    void logMessageIgnored(int atRound, Map<Address, Double> valuesReceived, Message msg) {
-        if ( logFile != null) logFile.write(atRound + "," + valuesReceived.values().size() + ", Message Ignored : from " + msg.getSender().toString());
+    public void DEBUG(String logMessage, Client client, Message msg){
+        if ( logFile != null)
+            logFile.write( logMessage + " - " + serializeMessage(msg) + " - " + serializeClient(client));
     }
 
-    void logHaltMessageReceived(int atRound, Map<Address, Double> valuesReceived, Message msg) {
-        if ( logFile != null) logFile.write(atRound + "," + valuesReceived.values().size() + ", Halt Message received : from " + msg.getSender().toString() + " at round " + msg.round);
+    public String serializeClient(Client c){
+        return "Client{" +
+                "round=" + c.currentRound + "/" + c.roundsToBeExecuted + ", " +
+                "valuesReceivedSize=" + c.currentValuesReceived.values().size() +
+                '}';
     }
 
-    void logNewRoundArchived(int atRound, Map<Address, Double> valuesReceived, double value) {
-        if ( logFile != null) logFile.write(atRound + "," + valuesReceived.values().size() + ", Round " +atRound + " archived: new value " + value);
-    }
-
-    void logFinished(int atRound, Map<Address, Double> valuesReceived, double value) {
-        if ( logFile != null) logFile.write(atRound + "," + valuesReceived.values().size() + ", Finished with value " + value);
-    }
-
-    void logFutureMessage(int atRound, Map<Address, Double> valuesReceived, Message msg) {
-        if ( logFile != null) logFile.write(atRound + "," + valuesReceived.values().size() + ", Future message to round " + msg.round);
+    public String serializeMessage(Message m){
+        return m.toString();
     }
 
     public void close() {
         if ( logFile != null) logFile.close();
     }
+
 }

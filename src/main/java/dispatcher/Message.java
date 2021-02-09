@@ -33,4 +33,13 @@ public class Message {
         }
         return false;
     }
+
+    @Override
+    public String toString() {
+        return "Message{" +
+                "value=" + value +
+                ", round=" + round +
+                ", sender=" + sender +
+                '}';
+    }
 }

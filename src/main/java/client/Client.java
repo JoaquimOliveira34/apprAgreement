@@ -26,8 +26,8 @@ public class Client implements RunnableConfigurable {
     private MessageDispatcher dispatcher;
 
     // Client state
-    private int currentRound, roundsToBeExecuted;
-    private final Map<Address, Double> currentValuesReceived;
+    public int currentRound, roundsToBeExecuted;
+    public final Map<Address, Double> currentValuesReceived;
     private final Map<Integer,List<Message> > haltMessages;
     private final Map<Integer,List<Message>> futureMsg;
     private final CompletableFuture<Void> allDone;
@@ -52,7 +52,7 @@ public class Client implements RunnableConfigurable {
         this.platform = SimulatedPlatform.instance();
         this.dispatcher = factory.getMessageDispatcher(platform);
         this.register = register;
-        this.logger = new Logger(logsPathName, register.getId() + "-" + dispatcher.getAddress().toString() + ".csv",  register.getClientDebugMode());
+        this.logger = new Logger(logsPathName, register.getId() + "-" + dispatcher.getAddress().toString(),  register.getClientDebugMode());
         run();
     }
 
@@ -60,7 +60,7 @@ public class Client implements RunnableConfigurable {
     public void run() {
         currentRound = 0;
         double initialValue = register.getInitialValue();
-        logger.logNewRoundArchived(currentRound, currentValuesReceived, initialValue);
+        logger.DEBUG("Client running", this);
         register.newRoundAchieved( currentRound, null, initialValue);
 
         dispatcher.registerHandler(ROUND_TAG, this::receiveRoundMsg);
@@ -71,7 +71,7 @@ public class Client implements RunnableConfigurable {
 
     //  Receivers Methods
     private synchronized void receiveHaltMsg(Message msg){
-        logger.logHaltMessageReceived(currentRound, currentValuesReceived, msg);
+        logger.DEBUG("Halt Message received", this, msg);
 
         usefulMessagesCount ++;
 
@@ -87,14 +87,14 @@ public class Client implements RunnableConfigurable {
     private synchronized void receiveRoundMsg(Message msg){
         // Ignore message
         if(msg.round < this.currentRound || !isRunning ){
-            logger.logMessageIgnored(currentRound, currentValuesReceived, msg);
+            logger.DEBUG("Message Ignored", this, msg);
             ignoredMessagesCount.merge(msg.round, 1, Integer::sum);
             return;
         }
 
         // Future messages
         if(msg.round > this.currentRound) {
-            logger.logFutureMessage(currentRound, currentValuesReceived, msg);
+            logger.DEBUG("Future message received", this, msg);
             futureMsg.putIfAbsent(msg.round, new ArrayList<>());
             futureMsg.get(msg.round).add(msg);
             return;
@@ -102,7 +102,7 @@ public class Client implements RunnableConfigurable {
 
         // Useful message
         usefulMessagesCount ++;
-        logger.logNewMessageReceived(currentRound, currentValuesReceived, msg);
+        logger.DEBUG("New Message received", this, msg);
         addMessageToCollection(msg);
     }
 
@@ -124,7 +124,7 @@ public class Client implements RunnableConfigurable {
 
         //Calculate new value
         double value = MyMath.newValue(register.getFaultProcessCount(), currentValuesReceived.values(), currentRound ==1);
-        logger.logNewRoundArchived(currentRound, currentValuesReceived, value);
+        logger.DEBUG("New round archived", this);
         register.newRoundAchieved(currentRound,new HashSet<>(currentValuesReceived.keySet()), value);
 
         currentValuesReceived.clear();
@@ -133,6 +133,7 @@ public class Client implements RunnableConfigurable {
             // If last round is archived
             broadcastHaltMsg( value, currentRound);
             isRunning = false;
+            logger.DEBUG("Client ready to finish", this);
             allDone.thenRun( () -> {
                 // stop to process messages
                 dispatcher.unregisterHandler(HALT_TAG);
@@ -141,7 +142,7 @@ public class Client implements RunnableConfigurable {
                 //Log and report data
                 futureMsg.values().stream().flatMap(List::stream).forEach(m -> ignoredMessagesCount.merge(m.round, 1, Integer::sum));
                 register.finish(dispatcher.getAddress(), platform.nanoTime(), currentRound, value,  usefulMessagesCount, ignoredMessagesCount);
-                logger.logFinished(currentRound, currentValuesReceived, value);
+                logger.DEBUG("Client Finished", this);
                 logger.close();
             });
         }else{
