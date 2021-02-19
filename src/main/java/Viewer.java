@@ -135,7 +135,7 @@ public class Viewer {
         if (executions.size() == 0)
             return;
 
-        FileUtils.saveString(folder.getAbsolutePath() + "/resume.csv", executionResumeAsCsv(executions) );
+        FileUtils.writeStringToFile(folder.getAbsolutePath() + "/resume.csv", executionResumeAsCsv(executions) );
 
         plotDiffMSetsReceivedByRound(executions, folder.getAbsolutePath() + "/diffMSetsByRound.png");
         plotStandDerivationByRound(executions, folder.getAbsolutePath() + "/stByRound.png");

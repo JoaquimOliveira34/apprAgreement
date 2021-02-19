@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class DemoConfig  {
-    private static final int DELAY = 0;
-    private static final int FANOUT = 0;
+    // TODO : Remove class. Configuration class should be able to read from config file and use default values.
+
     private static final TimeUnit DELAY_TIME_UNIT = TimeUnit.NANOSECONDS;
     private final Config conf;
 
@@ -70,24 +70,32 @@ public class DemoConfig  {
         return getDemoValueAsList("f");
     }
 
-    public Integer getFaultyProcess(int defaultValue) {
+    public Integer getFaultyProcess() {
         try {
             return conf.getConfig("demo").getInt("f");
         }catch (ConfigException.Missing e){
-            return defaultValue;
+            return null;
         }
     }
 
-    public int getDelay() {
+    public Integer getDelay() {
         try{
             return conf.getConfig("demo").getInt("delay");
         }catch (ConfigException.Missing e){
-            return DELAY;
+            return null;
         }
     }
 
     public List<Integer> getDelayAsList() throws InvalidPropertiesFormatException {
         return getDemoValueAsList("delay");
+    }
+
+    public Integer getDelayGroupSize() {
+        try{
+            return conf.getConfig("demo").getInt( "delay_group_size");
+        }catch (ConfigException.Missing e){
+            return null;
+        }
     }
 
     public TimeUnit getDelayTimeUnit() {
@@ -98,11 +106,11 @@ public class DemoConfig  {
         }
     }
 
-    public int getFanout() {
+    public Integer getFanout() {
         try{
             return conf.getConfig("demo").getInt("fanout");
         }catch( ConfigException.Missing e){
-            return FANOUT;
+            return null;
         }
     }
 

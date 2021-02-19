@@ -10,6 +10,7 @@ public class ResourcesGenerator {
         int n = 201;
         int fanoutGeneratorStep = n/23;
         int repeat = 3;
+        int delayGroupSize = fanoutGeneratorStep; // or 1
         int[] delayValues = new int[]{
                 100000,
                 500000,
@@ -26,10 +27,10 @@ public class ResourcesGenerator {
 
         writeToFile(path + "run_without.conf", formatWithoutDispatcher(repeat, n));
         for(int i = 0; i < delayValues.length; i ++)
-            writeToFile(path + "run_with_" + (i+1) +".conf", formatWithDispatcher(repeat,n,fanoutGeneratorStep, delayValues[i]));
+            writeToFile(path + "run_with_" + (i+1) +".conf", formatWithDispatcher(repeat,n,fanoutGeneratorStep, delayValues[i], delayGroupSize));
     }
 
-    private static String formatWithDispatcher(int repeat, int n, int fanoutStep, int delay){
+    private static String formatWithDispatcher(int repeat, int n, int fanoutStep, int delay, int delayGroupSize){
         return  "# Process configuration:\n" +
                 "client : {\n" +
                 "    debug : false\n" +
@@ -47,6 +48,7 @@ public class ResourcesGenerator {
                 "    n : " + n + "\n" +
                 "    fanout : {generator: linear, start: 0, end: "+n+", step: "+ fanoutStep+ "}\n" +
                 "    delay : " + delay + "\n" +
+                "    delay_group_size : " + delayGroupSize +" \n" +
                 "}\n" +
                 "\n" +
                 "# Minha4 configuration:\n" +

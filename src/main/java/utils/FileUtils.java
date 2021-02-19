@@ -1,9 +1,8 @@
 package utils;
 
 import java.io.*;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Scanner;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class FileUtils {
     FileWriter fw;
@@ -72,14 +71,14 @@ public class FileUtils {
         return files[selected];
     }
 
-    public static void saveString(String filename, String data) throws IOException {
+    public static void writeStringToFile(String filename, String data) throws IOException {
         FileWriter myWriter = new FileWriter(filename);
         myWriter.write(data);
         myWriter.flush();
         myWriter.close();
     }
 
-    public static void saveObject(String fileName, Serializable obj) throws IOException {
+    public static void writeObjectToFie(String fileName, Serializable obj) throws IOException {
         ObjectOutputStream oos = null;
         try {
             FileOutputStream fout = new FileOutputStream( fileName);
@@ -95,5 +94,14 @@ public class FileUtils {
         File directory = new File(folderPath);
         if (! directory.exists())
             directory.mkdirs();
+    }
+
+    public static List<String> listFilesNamesFromFolder(String folderName) throws FileNotFoundException {
+        File folder = new File(folderName);
+        File[] files = folder.listFiles();
+        if (files == null || files.length == 0) {
+            throw new FileNotFoundException();
+        }
+        return Arrays.stream(files).map( File::getName).collect(Collectors.toList());
     }
 }

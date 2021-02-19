@@ -8,35 +8,22 @@ import pt.inesctec.minha.sim.atomix.SimulatedAtomixCluster;
 
 import java.io.*;
 import java.util.InvalidPropertiesFormatException;
+import java.util.List;
 
 import static utils.FileUtils.*;
 
 public class Demo {
+    // TODO : refactor application_example with new parameters
     public static final String MAIN_FOLDER = "./results";
-    public static final String[] CONFIG_FILES = new String[]{
-            "run_without",
-            "run_with_1",
-            "run_with_2",
-            "run_with_3",
-            "run_with_4",
-            "run_with_5",
-            "run_with_6",
-            "run_with_7",
-            "run_with_8",
-            "run_with_9",
-            "run_with_10",
-            "run_with_11",
-            // "change_delay",
-            // "change_fanout",
-          };
 
-    public static void main(String[] args){
-        for( String configFile : CONFIG_FILES){
+    public static void main(String[] args) throws FileNotFoundException {
+        System.out.println(listConfigFilesNames());
+        for( String configFile : listConfigFilesNames()){
             try{
                 DemoConfig demoConfig = new DemoConfig(configFile);
-                String folderPath = Demo.MAIN_FOLDER + "/" + demoConfig.getDemoType().toString() + ":" + System.currentTimeMillis();
+                String folderPath = getSimulationFolderName(demoConfig);
                 createFolder(folderPath);
-                saveString(folderPath +"/config.conf", demoConfig.toString());
+                writeStringToFile(folderPath +"/config.conf", demoConfig.toString());
 
                 switch (demoConfig.getDemoType()){
                     case CHANGE_PROCESS_NUMBER:
@@ -63,102 +50,114 @@ public class Demo {
         }
     }
 
-    private static void changeProcessesNumber(DemoConfig demoConfig, String folderPath) throws Exception {
-        Integer f = demoConfig.getFaultyProcess(-1);
-        for(int n :  demoConfig.getProcessNumberList()) {
-            Configuration.Builder configBuilder = new Configuration.Builder()
-                    .setProcessesNumber(n)
-                    .setEpsilon(demoConfig.getEpsilon())
-                    .setMean(demoConfig.getMean())
-                    .setStandardDeviation(demoConfig.getStandardDerivation())
-                    .setClientDebugMode(demoConfig.isClientDebug())
-                    .setDelay(demoConfig.getDelay(), demoConfig.getDelayTimeUnit())
-                    .setFanout(demoConfig.getFanout());
+    private static List<String> listConfigFilesNames() throws FileNotFoundException {
+        List<String> list = listFilesNamesFromFolder("./src/main/resources/");
+        list.remove("application_example.conf");
+        return list;
+    }
 
-            if(f > 0) configBuilder.setFaultyProcessesNumber(f);
-            runNSimulations(demoConfig, folderPath, configBuilder.build());
+    private static String getSimulationFolderName(DemoConfig demoConfig){
+        return MAIN_FOLDER + "/" + demoConfig.getDemoType().toString() + ":" + System.currentTimeMillis();
+    }
+
+    private static void changeProcessesNumber(DemoConfig demoConfig, String folderPath) throws Exception {
+        for(int n :  demoConfig.getProcessNumberList()) {
+            Configuration conf = configBuilderHelper(
+                    demoConfig,
+                    n,
+                    demoConfig.getFaultyProcess(),
+                    demoConfig.getStandardDerivation(),
+                    demoConfig.getDelay(),
+                    demoConfig.getFanout());
+            runNSimulations(demoConfig.getClientPort(),demoConfig.getRepeat(), folderPath, conf);
         }
     }
 
     private static void changeStandardDerivation(DemoConfig demoConfig, String folderPath) throws Exception{
-        for(int st : demoConfig.getStandardDerivationList())
-            runNSimulations(demoConfig, folderPath,  new Configuration.Builder()
-                    .setProcessesNumber(demoConfig.getProcessNumber())
-                    .setEpsilon(demoConfig.getEpsilon())
-                    .setMean(demoConfig.getMean())
-                    .setStandardDeviation(st)
-                    .setClientDebugMode(demoConfig.isClientDebug())
-                    .setDelay(demoConfig.getDelay(), demoConfig.getDelayTimeUnit())
-                    .setFanout(demoConfig.getFanout())
-                    .build());
+        for(int st : demoConfig.getStandardDerivationList()){
+            Configuration conf = configBuilderHelper(
+                    demoConfig,
+                    demoConfig.getProcessNumber(),
+                    demoConfig.getFaultyProcess(),
+                    st,
+                    demoConfig.getDelay(),
+                    demoConfig.getFanout());
+            runNSimulations(demoConfig.getClientPort(),demoConfig.getRepeat(), folderPath, conf);
+        }
     }
 
     private static void changeFaultyProcessesNumber(DemoConfig demoConfig, String folderPath) throws Exception {
-        for(int faulty : demoConfig.getFaultyProcessList())
-             runNSimulations(demoConfig, folderPath, new Configuration.Builder()
-                     .setProcessesNumber(demoConfig.getProcessNumber())
-                     .setFaultyProcessesNumber(faulty)
-                     .setEpsilon(demoConfig.getEpsilon())
-                     .setMean(demoConfig.getMean())
-                     .setStandardDeviation(demoConfig.getStandardDerivation())
-                     .setClientDebugMode(demoConfig.isClientDebug())
-                     .setDelay(demoConfig.getDelay(), demoConfig.getDelayTimeUnit())
-                     .setFanout(demoConfig.getFanout())
-                     .build());
+        for(int faulty : demoConfig.getFaultyProcessList()){
+            Configuration conf = configBuilderHelper(
+                    demoConfig,
+                    demoConfig.getProcessNumber(),
+                    faulty,
+                    demoConfig.getStandardDerivation(),
+                    demoConfig.getDelay(),
+                    demoConfig.getFanout());
+            runNSimulations(demoConfig.getClientPort(),demoConfig.getRepeat(), folderPath, conf);
+        }
     }
 
     private static void changeFanout(DemoConfig demoConfig, String folderPath) throws Exception{
         if( ! demoConfig.isGossipDispatcher())
             throw new InvalidPropertiesFormatException("Cannot run demo type \"change fanout\" with default dispatcher");
 
-        for(int fanout : demoConfig.getFanoutList())
-            runNSimulations(demoConfig, folderPath, new Configuration.Builder()
-                    .setProcessesNumber(demoConfig.getProcessNumber())
-                    .setEpsilon(demoConfig.getEpsilon())
-                    .setMean(demoConfig.getMean())
-                    .setStandardDeviation(demoConfig.getStandardDerivation())
-                    .setClientDebugMode(demoConfig.isClientDebug())
-                    .setDelay(demoConfig.getDelay(), demoConfig.getDelayTimeUnit())
-                    .setFanout(fanout)
-                    .build());
+        for(int fanout : demoConfig.getFanoutList()){
+            Configuration conf = configBuilderHelper(
+                    demoConfig,
+                    demoConfig.getProcessNumber(),
+                    demoConfig.getFaultyProcess(),
+                    demoConfig.getStandardDerivation(),
+                    demoConfig.getDelay(),
+                    fanout);
+            runNSimulations(demoConfig.getClientPort(),demoConfig.getRepeat(), folderPath, conf);
+        }
     }
 
     private static void changeDelay(DemoConfig demoConfig, String folderPath) throws Exception{
         if( ! demoConfig.isGossipDispatcher())
             throw new InvalidPropertiesFormatException("Cannot run demo type \"change delay\" with default dispatcher");
 
-        for(int delay : demoConfig.getDelayAsList())
-            runNSimulations(demoConfig, folderPath, new Configuration.Builder()
-                    .setProcessesNumber(demoConfig.getProcessNumber())
-                    .setEpsilon(demoConfig.getEpsilon())
-                    .setMean(demoConfig.getMean())
-                    .setStandardDeviation(demoConfig.getStandardDerivation())
-                    .setClientDebugMode(demoConfig.isClientDebug())
-                    .setDelay(delay, demoConfig.getDelayTimeUnit())
-                    .setFanout(demoConfig.getFanout())
-                    .build());
+        for(int delay : demoConfig.getDelayAsList()){
+            Configuration conf = configBuilderHelper(
+                    demoConfig,
+                    demoConfig.getProcessNumber(),
+                    demoConfig.getFaultyProcess(),
+                    demoConfig.getStandardDerivation(),
+                    delay,
+                    demoConfig.getFanout());
+            runNSimulations(demoConfig.getClientPort(),demoConfig.getRepeat(), folderPath, conf);
+        }
     }
 
-    private static void runNSimulations(DemoConfig demoConfig, String folderPath, Configuration config) throws Exception {
-        for(int i = 0; i< demoConfig.getRepeat(); i++) {
+    private static void runNSimulations(int clientPort, int repeat, String folderPath, Configuration config) throws Exception {
+        for(int i = 0; i< repeat; i++) {
             // requesting JVM for running Garbage Collector
             System.gc();
 
             World w = new SimulatedAtomixCluster(null, null);
             Execution execution = new Execution(config);
-            DispatcherFactory df = new DispatcherFactory(demoConfig.getClientPort(), execution, demoConfig.isGossipDispatcher(), config.fanout, config.delay, config.delayTimeUnit);
+            DispatcherFactory df = new DispatcherFactory(
+                    clientPort,
+                    execution,
+                    config.isGossipDispatcher,
+                    config.fanout,
+                    config.delay,
+                    config.delayGroupSize,
+                    config.delayTimeUnit);
 
             for (int j = 0; j < config.n; j++) {
                 Process p = w.createHost().createProcess();
                 Entry<RunnableConfigurable> e = p.createEntry(RunnableConfigurable.class, Client.class.getName());
                 e.asap().queue().setConfigurationThenRun(execution, df, folderPath + "/logs/");
             }
-            execution.setHostsAddress(w.getHosts(), demoConfig.getClientPort());
+            execution.setHostsAddress(w.getHosts(), clientPort);
             w.run();
 
             try {
                 execution.getFinished().get();
-                saveObject(folderPath + "/exec" + execution.getId() + ".ser", execution );
+                writeObjectToFie(folderPath + "/exec" + execution.getId() + ".ser", execution );
             }catch (Exception e){
                 e.printStackTrace();
             }
@@ -166,4 +165,18 @@ public class Demo {
         System.out.println(config.toString());
     }
 
+    private static Configuration configBuilderHelper(DemoConfig demoConfig, int n, Integer f, int st, Integer delay, Integer fanout){
+        return new Configuration.Builder()
+                .setProcessesNumber(n)
+                .setFaultyProcessesNumber(f)
+                .setEpsilon(demoConfig.getEpsilon())
+                .setMean(demoConfig.getMean())
+                .setStandardDeviation(st)
+                .setDelay(delay, demoConfig.getDelayTimeUnit())
+                .setDelayGroupSize(demoConfig.getDelayGroupSize())
+                .setFanout(fanout)
+                .setClientDebugMode(demoConfig.isClientDebug())
+                .setIsGossipDispatcher(demoConfig.isGossipDispatcher())
+                .build();
+    }
 }

@@ -30,17 +30,8 @@ public class MutatedGossipDispatcher extends MessageDispatcher {
                                    SimulatedPlatform platform,
                                    int fanout,
                                    int delay,
+                                   int delayGroupSize,
                                    TimeUnit delayTimeUnit) {
-        this(address,register,platform, fanout, delay, delayTimeUnit, fanout);
-    }
-
-    public MutatedGossipDispatcher(Address address,
-                                   DispatcherEventsRegister register,
-                                   SimulatedPlatform platform,
-                                   int fanout,
-                                   int delay,
-                                   TimeUnit delayTimeUnit,
-                                   int delayGroupSize) {
         super(address,register,platform);
         this.roundsByAddress = new HashMap<>();
         this.fanout = fanout;
