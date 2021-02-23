@@ -3,7 +3,7 @@ package utils;
 import java.io.FileWriter;
 import java.io.IOException;
 
-public class ResourcesGenerator {
+public class ConfigFileGenerator {
     private static final String path = "./src/main/resources/";
 
     public static void main(String[] args) throws IOException {

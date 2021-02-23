@@ -65,7 +65,7 @@ public class Configuration implements Serializable {
                 ", e=" + e +
                 ", st=" + standardDeviation +
                 ", fanout = " + fanout +
-                ", delay = " + delay +
+                ", delay = " + delay + "("+ delayTimeUnit +")" +
                 ", delayGroupSize = " + delayGroupSize;
     }
 
@@ -93,7 +93,7 @@ public class Configuration implements Serializable {
         private int n;
         private double e, mean, standardDeviation;
         private boolean clientDebug, isGossipDispatcher;
-        private Integer t, delay, fanout, delayGroupSize;
+        private Integer faulty, delay, fanout, delayGroupSize;
         private TimeUnit delayTimeUnit;
 
         public Builder setEpsilon(double e) {
@@ -116,8 +116,8 @@ public class Configuration implements Serializable {
             return this;
         }
 
-        public Builder setFaultyProcessesNumber(Integer t) {
-            this.t = t;
+        public Builder setFaultyProcessesNumber(Integer faulty) {
+            this.faulty = faulty;
             return this;
         }
 
@@ -143,19 +143,20 @@ public class Configuration implements Serializable {
         }
 
         public Builder setIsGossipDispatcher(boolean isGossipDispatcher) {
-            if( t == null || t < 0) t = (n-1)/5;
-
             this.isGossipDispatcher = isGossipDispatcher;
             return this;
         }
 
         public Configuration build(){
             checkDataIntegrity();
-            return new Configuration(n,t,e,mean,standardDeviation,fanout, delay, delayGroupSize, delayTimeUnit, clientDebug, isGossipDispatcher);
+            return new Configuration(n,faulty,e,mean,standardDeviation,fanout, delay, delayGroupSize, delayTimeUnit, clientDebug, isGossipDispatcher);
         }
 
         private void checkDataIntegrity(){
-            if( n < 5*t +1)
+            if( faulty == null || faulty < 0)
+                faulty = (n-1)/5;
+
+            if( n < 5*faulty +1)
                 throw new IllegalArgumentException("n must be equal to or greater than 5t+1");
             if(isGossipDispatcher){
                 if( delayGroupSize == null || delayGroupSize < 0 )
