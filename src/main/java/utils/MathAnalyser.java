@@ -4,11 +4,68 @@ import java.security.SecureRandom;
 import java.util.*;
 
 public class MathAnalyser {
+    static final String splitter = ";";
     static double e = 0.001;
 
     public static void main(String[] args) {
+        // changeFaultyProcessNumber(150);
+        // changeProcessNumberWithStaticF(26, 150, 5);
+        changeProcessNumberWithCrescF(6, 150);
+    }
+
+
+    // Plot functions
+    private static void changeFaultyProcessNumber(int n) {
+        List<Double> initialValuesEx = mostWeightOnExtremes(n,  100, 1100);
+        List<Double> initialValuesRep = repeat(n , 500);
+        List<Double> initialValuesND = fromNormalDistribution(n, 500, 250);
+        List<Double> initialValuesLin = linear(n,  100, 1000/n);
+
+        System.out.println("Max rounds : Change Faulty Process Number (n=" +n + ")");
+        // System.out.println("n" + splitter + "f" + splitter + "Rep_rounds"+ splitter + "Ex_rounds"+ splitter + "ND_rounds"+ splitter + "Lin_rounds");
+        System.out.println("n" + splitter + "f" + splitter + "rounds");
+
+        for(int f = 1; f < n/5; f ++) {
+            String r = MyMath.maxRounds(n, f, e, initialValuesRep) + splitter +
+                    MyMath.maxRounds(n, f, e, initialValuesEx) + splitter +
+                    MyMath.maxRounds(n, f, e, initialValuesND) + splitter +
+                    MyMath.maxRounds(n, f, e, initialValuesLin);
+            System.out.println(n + splitter + f + splitter + MyMath.maxRounds(n, f, e, initialValuesLin));
+        }
+    }
+
+    private static void changeProcessNumberWithStaticF(int nMin, int nMax, int f) {
+        System.out.println("Max rounds : Change Process Number (f static)");
+        System.out.println("n" + splitter + "f" + splitter + "rounds");
+
+        for(int n = nMin; n < nMax; n ++) {
+            List<Double> initialValues = linear(n,  100, 1000/n);
+            System.out.println( n + splitter + f + splitter + MyMath.maxRounds(n, f, e, initialValues));
+        }
+
+        // new GraphPlotter.GraphPlotterBuilder()
+        //        .setTitle("Rounds determination function")
+        //        .setXAxisLabel("n")
+        //        .setYAxisLabel("rounds")
+        //        .addIntegerSeries(map, "f="+f)
+        //        .build()
+        //        .setVisible(true);
+    }
+
+    private static void changeProcessNumberWithCrescF(int nMin, int nMax) {
+        System.out.println("Max rounds : Change Process Number (f max)");
+        System.out.println("n" + splitter + "f" + splitter + "rounds");
+
+        for(int n = nMin; n < nMax; n ++) {
+            List<Double> initialValues = linear(n,  100, 1000/n);
+            int f = (n-1)/5;
+            System.out.println( n + splitter + f + splitter + MyMath.maxRounds(n, f, e, initialValues));
+        }
+    }
+
+    // C Function
+    private static void changeFaultyProcessNumber_C(int n){
         HashMap<Integer, Double> map = new HashMap<>();
-        int n = 125;
         for(int f = 1; f < 25; f ++){
             double v = MyMath.c(n - 3 * f, 2 * f);
             map.put(f, v);
@@ -21,69 +78,9 @@ public class MathAnalyser {
                 .addDoubleSeries(map, "n=500")
                 .build()
                 .setVisible(true);
-
     }
 
-
-    // Plot functions
-    private static void changeFaultyProcessNumber(int n) {
-        Map<Integer, Integer> map = new HashMap<>();
-        List<Double> initialValues = mostWeightOnExtremes(n,  100, 1100);
-
-        plotInitialValues(initialValues);
-
-        for(int f = 0; f < n/5; f ++)
-            map.put(f,MyMath.maxRounds(n, f, e, initialValues));
-
-        new GraphPlotter.GraphPlotterBuilder()
-                .setTitle("Rounds determination function")
-                .setXAxisLabel("f")
-                .setYAxisLabel("rounds")
-                .addIntegerSeries(map, "n="+n)
-                .build()
-                .setVisible(true);
-    }
-
-    private static void changeProcessNumberWithStaticF(int nMin, int nMax, int f) {
-        Map<Integer, Integer> map = new HashMap<>();
-
-        for(int n = nMin; n < nMax; n ++) {
-            List<Double> initialValues = linear(n,  100, 10);
-            map.put(n, MyMath.maxRounds(n, f, e, initialValues));
-        }
-
-        new GraphPlotter.GraphPlotterBuilder()
-                .setTitle("Rounds determination function")
-                .setXAxisLabel("n")
-                .setYAxisLabel("rounds")
-                .addIntegerSeries(map, "f="+f)
-                .build()
-                .setVisible(true);
-    }
-
-    private static void changeProcessNumberWithCrescF(int nMin, int nMax) {
-        Map<Integer, Integer> roundsByP = new HashMap<>();
-        Map<Integer, Integer> faulty = new HashMap<>();
-
-        for(int n = nMin; n < nMax; n ++) {
-            List<Double> initialValues = linear(n,  100, 10);
-            int f = (n-1)/5;
-            faulty.put(n, f);
-            roundsByP.put(n, MyMath.maxRounds(n, f, e, initialValues));
-        }
-
-        new GraphPlotter.GraphPlotterBuilder()
-                .setTitle("Rounds determination function")
-                .setXAxisLabel("n")
-                .setYAxisLabel("count")
-                .addIntegerSeries(roundsByP, "rounds")
-                //.addIntegerSeries(faulty, "faulty process")
-                .build()
-                .setVisible(true);
-    }
-
-
-    // Initial values generator
+    // Initial values generators
     private static List<Double> repeat(int count, double value) {
         List<Double> list = new ArrayList<>();
         for (int i = 0; i < count; i++)
